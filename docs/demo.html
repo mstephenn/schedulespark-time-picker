@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ScheduleSpark Time Picker Demo</title>
+    <link rel="stylesheet" href="../dist/styles.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "../dist/time-picker": "../dist/time-picker.js",
+          "../dist/time-utils": "../dist/time-utils.js"
+        }
+      }
+    </script>
+    <style>
+      body {
+        align-items: center;
+        background: #f4f7f5;
+        display: flex;
+        font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+        justify-content: center;
+        margin: 0;
+        min-height: 100vh;
+      }
+
+      .demo-shell {
+        background: #fff;
+        border: 1px solid #d8e0dc;
+        border-radius: 12px;
+        box-shadow: 0 24px 60px rgb(17 24 39 / 14%);
+        padding: 24px;
+        width: 360px;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="demo-shell">
+      <div id="picker"></div>
+    </main>
+    <script type="module">
+      import { createTimePicker } from "../dist/index.js";
+
+      const params = new URLSearchParams(window.location.search);
+      const mode = params.get("mode") === "digital" ? "digital" : "analog";
+      const range = mode === "digital"
+        ? { maxTime: "02:30", minTime: "01:00", value: "01:30" }
+        : { maxTime: "18:00", minTime: "06:00", value: "13:15" };
+
+      createTimePicker({
+        label: "Shift time",
+        maxTime: range.maxTime,
+        minTime: range.minTime,
+        minuteStep: 15,
+        mode,
+        timeFormat: mode === "analog" ? "12h" : "24h",
+        value: range.value
+      }).mount(document.querySelector("#picker"));
+    </script>
+  </body>
+</html>
