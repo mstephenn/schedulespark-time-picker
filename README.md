@@ -2,6 +2,8 @@
 
 Framework-free analog and digital time picker for ScheduleSpark forms.
 
+Full documentation: https://docs.schedulespark.com/docs/time-picker
+
 ## Screenshots
 
 Only the labeled input shows by default; the picker opens as an anchored popover on focus.
@@ -9,7 +11,9 @@ Screenshots below show the popover open, in each mode.
 
 ### Analog
 
-![Analog time picker popover open, showing AM/PM controls and hour/minute clock faces](https://cdn.jsdelivr.net/npm/@schedulespark/time-picker/docs/screenshots/analog.jpg)
+![Analog time picker popover open, showing icon mode toggles, AM/PM controls, and an SVG clock face with a draggable hand](https://cdn.jsdelivr.net/npm/@schedulespark/time-picker/docs/screenshots/analog.jpg)
+
+Click or drag anywhere on the dial — the hand tracks the pointer continuously and snaps the minute to the configured `minuteStep`.
 
 ### Digital
 
@@ -91,7 +95,7 @@ Options:
 - `onChange`: receives normalized `HH:mm`.
 - `mode`: `"analog"` or `"digital"`.
 - `timeFormat`: `"24h"` or `"12h"` display mode, default `"24h"`.
-- `minuteStep`: digital option step, default `15`.
+- `minuteStep`: digital option step and analog drag-rounding step, default `15`.
 - `minTime`: lowest selectable value, inclusive.
 - `maxTime`: highest selectable value, inclusive.
 - `label`, `id`, `name`, `placeholder`, `required`, `disabled`.

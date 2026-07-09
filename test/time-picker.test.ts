@@ -2,8 +2,17 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createTimePicker } from "../src";
 
+function clockPoint(hourPosition: number, radius: number, size = 272): { x: number; y: number } {
+  const radians = (((hourPosition / 12) * 360 - 90) * Math.PI) / 180;
+  return {
+    x: ((50 + (radius * Math.cos(radians))) / 100) * size,
+    y: ((50 + (radius * Math.sin(radians))) / 100) * size
+  };
+}
+
 describe("createTimePicker", () => {
   afterEach(() => {
+    vi.restoreAllMocks();
     document.body.replaceChildren();
   });
 
@@ -19,9 +28,26 @@ describe("createTimePicker", () => {
     expect(host.querySelector("label")?.getAttribute("for")).toBe(host.querySelector("input")?.id);
     expect(host.querySelector(".ssp-time-picker__popover")?.getAttribute("hidden")).toBe("");
     expect(host.querySelector("[data-view='analog']")).not.toBeNull();
-    expect(host.querySelector(".ssp-time-picker__clock-face")).not.toBeNull();
+    expect(host.querySelector("svg.ssp-time-picker__clock-face")).not.toBeNull();
+    expect(host.querySelectorAll("svg.ssp-time-picker__clock-face")).toHaveLength(1);
+    expect(host.querySelector(".ssp-time-picker__clock-hand")).not.toBeNull();
     expect(host.querySelector("[data-view='digital']")).not.toBeNull();
     expect(host.textContent).toContain("Start time");
+  });
+
+  it("renders icon-only mode toggle buttons with accessible labels instead of text", () => {
+    const host = document.createElement("div");
+    document.body.append(host);
+
+    createTimePicker({ value: "09:00" }).mount(host);
+
+    const analogButton = host.querySelector<HTMLButtonElement>("[aria-label='Analog'].ssp-time-picker__mode");
+    const digitalButton = host.querySelector<HTMLButtonElement>("[aria-label='Digital'].ssp-time-picker__mode");
+
+    expect(analogButton?.querySelector("svg.ssp-time-picker__mode-icon")).not.toBeNull();
+    expect(digitalButton?.querySelector("svg.ssp-time-picker__mode-icon")).not.toBeNull();
+    expect(analogButton?.textContent?.trim()).toBe("");
+    expect(digitalButton?.textContent?.trim()).toBe("");
   });
 
   it("opens the picker popover from the input and closes it with Escape", () => {
@@ -38,6 +64,26 @@ describe("createTimePicker", () => {
     input?.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Escape" }));
 
     expect(host.querySelector(".ssp-time-picker__popover")?.getAttribute("hidden")).toBe("");
+  });
+
+  it("right-aligns the popover when start alignment would overflow the viewport", () => {
+    vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function getBoundingClientRect(this: Element) {
+      if (this instanceof HTMLElement && this.classList.contains("ssp-time-picker__popover")) {
+        return { bottom: 0, height: 320, left: 0, right: 0, top: 0, width: 256, x: 0, y: 0, toJSON: () => ({}) };
+      }
+      if (this instanceof HTMLInputElement) {
+        return { bottom: 48, height: 44, left: 900, right: 1000, top: 4, width: 100, x: 900, y: 4, toJSON: () => ({}) };
+      }
+      return { bottom: 0, height: 0, left: 0, right: 0, top: 0, width: 0, x: 0, y: 0, toJSON: () => ({}) };
+    });
+
+    const host = document.createElement("div");
+    document.body.append(host);
+
+    createTimePicker({ value: "09:00" }).mount(host);
+    host.querySelector("input")?.dispatchEvent(new FocusEvent("focus", { bubbles: true }));
+
+    expect(host.querySelector(".ssp-time-picker__popover")?.getAttribute("data-align")).toBe("end");
   });
 
   it("closes the picker popover when clicking outside", () => {
@@ -74,13 +120,203 @@ describe("createTimePicker", () => {
 
     createTimePicker({ value: "09:00", minuteStep: 15, onChange }).mount(host);
     host.querySelector("input")?.dispatchEvent(new FocusEvent("focus", { bubbles: true }));
-    host.querySelector<HTMLButtonElement>("[data-hour='10']")?.click();
-    host.querySelector("input")?.dispatchEvent(new FocusEvent("focus", { bubbles: true }));
-    host.querySelector<HTMLButtonElement>("[data-minute='30']")?.click();
+    const face = host.querySelector<SVGSVGElement>(".ssp-time-picker__clock-face");
+    vi.spyOn(face!, "getBoundingClientRect").mockReturnValue({
+      bottom: 272,
+      height: 272,
+      left: 0,
+      right: 272,
+      top: 0,
+      width: 272,
+      x: 0,
+      y: 0,
+      toJSON: () => ({})
+    });
+    const point = clockPoint(10.5, 28);
+
+    face?.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, clientX: point.x, clientY: point.y }));
 
     expect(onChange).toHaveBeenLastCalledWith("10:30");
     expect(host.querySelector("input")?.value).toBe("10:30");
+    expect(host.querySelector(".ssp-time-picker__analog-value")?.textContent).toBe("10:30");
+    expect(host.querySelector(".ssp-time-picker__popover")?.hasAttribute("hidden")).toBe(false);
+
+    face?.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, clientX: point.x, clientY: point.y }));
+
     expect(host.querySelector(".ssp-time-picker__popover")?.getAttribute("hidden")).toBe("");
+  });
+
+  it("selects analog values from pointer position on the SVG dial", () => {
+    const host = document.createElement("div");
+    const onChange = vi.fn();
+    document.body.append(host);
+
+    createTimePicker({ value: "09:00", minuteStep: 15, onChange }).mount(host);
+    host.querySelector("input")?.dispatchEvent(new FocusEvent("focus", { bubbles: true }));
+    const hourFace = host.querySelector<SVGSVGElement>(".ssp-time-picker__clock-face--hours");
+    vi.spyOn(hourFace!, "getBoundingClientRect").mockReturnValue({
+      bottom: 272,
+      height: 272,
+      left: 0,
+      right: 272,
+      top: 0,
+      width: 272,
+      x: 0,
+      y: 0,
+      toJSON: () => ({})
+    });
+
+    const point = clockPoint(0, 28);
+    hourFace?.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, clientX: point.x, clientY: point.y }));
+
+    expect(onChange).toHaveBeenLastCalledWith("00:00");
+    expect(host.querySelector(".ssp-time-picker__popover")?.hasAttribute("hidden")).toBe(false);
+    expect(host.querySelector(".ssp-time-picker__analog-value")?.textContent).toBe("00:00");
+  });
+
+  it("updates analog minutes on the same hour dial while dragging and closes on release", () => {
+    const host = document.createElement("div");
+    const onChange = vi.fn();
+    document.body.append(host);
+
+    createTimePicker({ value: "10:00", minuteStep: 15, onChange }).mount(host);
+    host.querySelector("input")?.dispatchEvent(new FocusEvent("focus", { bubbles: true }));
+    const analogFace = host.querySelector<SVGSVGElement>(".ssp-time-picker__clock-face");
+    expect(host.querySelectorAll("svg.ssp-time-picker__clock-face")).toHaveLength(1);
+    vi.spyOn(analogFace!, "getBoundingClientRect").mockReturnValue({
+      bottom: 272,
+      height: 272,
+      left: 0,
+      right: 272,
+      top: 0,
+      width: 272,
+      x: 0,
+      y: 0,
+      toJSON: () => ({})
+    });
+    const start = clockPoint(10, 28);
+    const end = clockPoint(10.5, 28);
+
+    analogFace?.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, clientX: start.x, clientY: start.y }));
+    analogFace?.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: end.x, clientY: end.y }));
+
+    expect(onChange).toHaveBeenLastCalledWith("10:30");
+    expect(host.querySelector(".ssp-time-picker__analog-value")?.textContent).toBe("10:30");
+    expect(host.querySelector(".ssp-time-picker__popover")?.hasAttribute("hidden")).toBe(false);
+
+    analogFace?.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, clientX: end.x, clientY: end.y }));
+
+    expect(onChange).toHaveBeenLastCalledWith("10:30");
+    expect(host.querySelector(".ssp-time-picker__popover")?.getAttribute("hidden")).toBe("");
+  });
+
+  it("does not rebuild the dial mid-drag, so a real multi-move drag keeps tracking (regression)", () => {
+    // A previous implementation called a full popover rebuild on every drag update, which
+    // destroys and replaces the SVG dial element mid-gesture. In a real browser (without
+    // pointer capture surviving a swapped-out element) that silently ends the drag after
+    // its first move. This test re-queries the live DOM after every event — the way a real
+    // browser's own hit-testing would — instead of dispatching on one captured reference,
+    // so it actually exercises the bug a same-reference dispatch would mask.
+    const host = document.createElement("div");
+    const onChange = vi.fn();
+    document.body.append(host);
+
+    createTimePicker({ value: "10:00", minuteStep: 15, onChange }).mount(host);
+    host.querySelector("input")?.dispatchEvent(new FocusEvent("focus", { bubbles: true }));
+
+    const mockRect = {
+      bottom: 272,
+      height: 272,
+      left: 0,
+      right: 272,
+      top: 0,
+      width: 272,
+      x: 0,
+      y: 0,
+      toJSON: () => ({})
+    };
+    const queryGrid = (): SVGSVGElement => {
+      const grid = host.querySelector<SVGSVGElement>(".ssp-time-picker__clock-face")!;
+      vi.spyOn(grid, "getBoundingClientRect").mockReturnValue(mockRect);
+      return grid;
+    };
+
+    const gridAtDown = queryGrid();
+    const start = clockPoint(10, 28);
+    gridAtDown.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, clientX: start.x, clientY: start.y }));
+
+    const gridAfterDown = queryGrid();
+    expect(gridAfterDown).toBe(gridAtDown);
+
+    const mid = clockPoint(10.25, 28);
+    gridAfterDown.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: mid.x, clientY: mid.y }));
+
+    const gridAfterFirstMove = queryGrid();
+    expect(gridAfterFirstMove).toBe(gridAtDown);
+    expect(onChange).toHaveBeenLastCalledWith("10:15");
+
+    const end = clockPoint(10.5, 28);
+    gridAfterFirstMove.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: end.x, clientY: end.y }));
+
+    const gridAfterSecondMove = queryGrid();
+    expect(gridAfterSecondMove).toBe(gridAtDown);
+    expect(onChange).toHaveBeenLastCalledWith("10:30");
+    expect(host.querySelector(".ssp-time-picker__analog-value")?.textContent).toBe("10:30");
+    expect(host.querySelector(".ssp-time-picker__popover")?.hasAttribute("hidden")).toBe(false);
+
+    gridAfterSecondMove.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, clientX: end.x, clientY: end.y }));
+
+    expect(onChange).toHaveBeenLastCalledWith("10:30");
+    expect(host.querySelector(".ssp-time-picker__popover")?.getAttribute("hidden")).toBe("");
+  });
+
+  it("rounds dragged minutes to a custom minuteStep instead of a hardcoded 15", () => {
+    const host = document.createElement("div");
+    const onChange = vi.fn();
+    document.body.append(host);
+
+    createTimePicker({ value: "10:00", minuteStep: 30, onChange }).mount(host);
+    host.querySelector("input")?.dispatchEvent(new FocusEvent("focus", { bubbles: true }));
+    const analogFace = host.querySelector<SVGSVGElement>(".ssp-time-picker__clock-face");
+    vi.spyOn(analogFace!, "getBoundingClientRect").mockReturnValue({
+      bottom: 272,
+      height: 272,
+      left: 0,
+      right: 272,
+      top: 0,
+      width: 272,
+      x: 0,
+      y: 0,
+      toJSON: () => ({})
+    });
+
+    // A fifth of the way past the 10 o'clock position (~12 minutes) should round down to
+    // the nearest 30-minute step (:00), not snap to a hardcoded 15-minute mark (:15).
+    const point = clockPoint(10.2, 28);
+    analogFace?.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, clientX: point.x, clientY: point.y }));
+
+    expect(onChange).toHaveBeenLastCalledWith("10:00");
+  });
+
+  it("lays out 24-hour analog hours as two twelve-position rings", () => {
+    const host = document.createElement("div");
+    document.body.append(host);
+
+    createTimePicker({ value: "00:00" }).mount(host);
+
+    const midnight = host.querySelector<SVGElement>("[data-hour='0']");
+    const noon = host.querySelector<SVGElement>("[data-hour='12']");
+    const one = host.querySelector<SVGElement>("[data-hour='1']");
+    const thirteen = host.querySelector<SVGElement>("[data-hour='13']");
+
+    expect(midnight?.textContent).toBe("00");
+    expect(noon?.textContent).toBe("12");
+    expect(midnight?.tagName.toLowerCase()).toBe("text");
+    expect(noon?.tagName.toLowerCase()).toBe("text");
+    expect(midnight?.getAttribute("x")).toBe(noon?.getAttribute("x"));
+    expect(midnight?.getAttribute("y")).not.toBe(noon?.getAttribute("y"));
+    expect(one?.getAttribute("x")).not.toBe(thirteen?.getAttribute("x"));
+    expect(one?.getAttribute("y")).not.toBe(thirteen?.getAttribute("y"));
   });
 
   it("does not open the picker popover when disabled", () => {
@@ -127,9 +363,9 @@ describe("createTimePicker", () => {
 
     createTimePicker({ maxTime: "10:00", minTime: "09:00", value: "09:00" }).mount(host);
 
-    expect(host.querySelector<HTMLButtonElement>("[data-hour='8']")?.disabled).toBe(true);
-    expect(host.querySelector<HTMLButtonElement>("[data-hour='9']")?.disabled).toBe(false);
-    expect(host.querySelector<HTMLButtonElement>("[data-hour='11']")?.disabled).toBe(true);
+    expect(host.querySelector<SVGElement>("[data-hour='8']")?.getAttribute("aria-disabled")).toBe("true");
+    expect(host.querySelector<SVGElement>("[data-hour='9']")?.getAttribute("aria-disabled")).toBe("false");
+    expect(host.querySelector<SVGElement>("[data-hour='11']")?.getAttribute("aria-disabled")).toBe("true");
   });
 
   it("shows AM/PM controls in 12-hour display mode while emitting HH:mm", () => {
@@ -178,9 +414,9 @@ describe("createTimePicker", () => {
     expect(host.querySelector(".ssp-time-picker__popover")?.hasAttribute("hidden")).toBe(false);
     // Re-query: switching mode rebuilds the popover's contents, so the button reference
     // captured before the click is now a detached node.
-    expect(host.querySelector<HTMLButtonElement>("[data-active='true'].ssp-time-picker__mode")?.textContent).toBe(
-      "Digital"
-    );
+    expect(host.querySelector<HTMLButtonElement>("[data-active='true'].ssp-time-picker__mode")?.getAttribute(
+      "aria-label"
+    )).toBe("Digital");
 
     const digitalOption = host.querySelector<HTMLButtonElement>("[data-time-value='09:30']");
     digitalOption?.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));

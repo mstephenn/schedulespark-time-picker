@@ -148,9 +148,12 @@ export function addMinutesToTime(value: string, minutesToAdd: number, minTime?: 
 }
 
 /**
- * Keeps minute steps within a practical one-hour range.
+ * Keeps minute steps within a practical one-hour range. Exported so every minute-step
+ * consumer (digital options, analog drag rounding) agrees on the same fallback for an
+ * invalid step (0, negative, non-integer, or >60), instead of each re-deriving its own.
  */
-function normalizeMinuteStep(minuteStep = 15): number {
+export function normalizeMinuteStep(minuteStep = 15): number {
   if (!Number.isInteger(minuteStep) || minuteStep < 1 || minuteStep > 60) return 15;
   return minuteStep;
 }
+
